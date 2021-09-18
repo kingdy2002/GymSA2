@@ -10,9 +10,9 @@ import modules
 class Actor(nn.Module):
     def __init__(self,state_dim, action_dim):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, state_dim)
-        self.fc2 = nn.Linear(state_dim, action_dim *4)
-        self.fc3 = nn.Linear(action_dim *4, action_dim)
+        self.fc1 = nn.Linear(state_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, action_dim)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -86,6 +86,7 @@ class dqn(agent_base) :
         if config.replay_buffer == 'per' :
             self.memory = modules.memory.per(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
 
+        self.global_step = 0
 
 
     def get_state(self, observations,env_observation):
@@ -103,14 +104,14 @@ class dqn(agent_base) :
         return Q
 
     def select_action(self,observation,epi):
-        eps = self.epsilon.linear(epi)
-        random_ac = random.randint(0,self.action_space.n - 1)
-        
+        eps = self.epsilon.proportional()
+
+        random_ac = random.randint(0,self.action_space.n -1)
         if random.random() < eps :
             ac = random_ac
         else :
             Q_ = self.predict(observation)
-            ac = torch.argmax(Q_,dim = 1).detach().item()
+            ac = torch.argmax(Q_).detach().item()
         return ac
 
 
@@ -128,9 +129,8 @@ class dqn(agent_base) :
             dones = [dones]
         """
 
+
         target_Q = self.network(next_states).detach().max(1)[0]
-
-
         target_Q = rewards + (self.hyperparameters["discount_rate"] * target_Q * (1 - dones))
         policy_Q = self.network(states)
         
@@ -150,10 +150,12 @@ class dqn(agent_base) :
         env_observation = self.config.env_observation
         state = self.get_state(state,env_observation)
         done = False
+
         while not done :
             step += 1
+            self.global_step += 1
 
-            if step >= self.config.max_step :
+            if step > self.config.env_args['max_episode_steps'] :
                 break
 
             action = self.select_action(state,epi)
@@ -180,7 +182,7 @@ class dqn(agent_base) :
             state = next_state
             total_return = total_return + reward
 
-            if step % self.config.update_interval == 0 :
+            if self.global_step % self.config.update_interval == 0 and self.global_step > self.config.train_start :
                 self.update()
 
             
@@ -188,6 +190,7 @@ class dqn(agent_base) :
 
         self.epi_train_time.append(t)
         self.epi_return.append(total_return)
+        
 
 
     def update(self) :
@@ -208,12 +211,11 @@ class dqn(agent_base) :
         return loss.item()
 
 
-    def run_n_epi(self, n,render = True) :
+    def run_n_epi(self,render = True) :
         self.save_model('dqn.{}'.format(0))
-        self.config.max_epi = n
         if self.config.max_epi == None :
-            self.config.max_epi = n
-        for epi in range(1,n) :
+            self.config.max_epi = 100000
+        for epi in range(1,self.config.max_epi) :
             self.step(epi,render = render)
 
             if epi % self.config.log_interval == 0 :
@@ -222,6 +224,13 @@ class dqn(agent_base) :
                 
             if epi % self.config.save_interval == 0 :
                 self.save_model('dqn.{}'.format(epi))
+
+
+            if epi > 21 :
+                return_sum = 0
+                for i in range(1,21) : 
+                    return_sum += self.epi_return[-i]
+                self.epi_avg_return.append(return_sum/20)
 
     def save_model(self,filename,folder = "./model_save/dqn") :
         torch.save(self.network.state_dict(), f"{folder}/{filename}.pt")

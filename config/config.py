@@ -10,13 +10,14 @@ class Config(object):
         self.agent_name = None
 
         self.epsilon = None
-        self.max_eps = 0.95
+        self.max_eps = 1
         self.min_eps = 0.05
         self.max_step = 10000
         self.policy_trans = 10000
 
         self.replay_buffer = 'buffer' #per, buffer
 
+        self.train_start = 1000
         self.update_interval = 4 #interval of update network at step
         self.max_epi = None
         self.hyperparameters = {}

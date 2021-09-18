@@ -70,7 +70,7 @@ class Net(nn.Module):
 
 
 
-class ddqn(agent_base) :
+class per_ddqn(agent_base) :
     
     def __init__(self,config) :
         agent_base.__init__(self,config)
@@ -83,11 +83,10 @@ class ddqn(agent_base) :
 
         self.epsilon = modules.explore.epsilon(self.config.max_epi,self.config.max_eps,self.config.min_eps)
 
-        if config.replay_buffer == 'buffer' :
-            self.memory = modules.memory.replay_buffer(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
 
-        if config.replay_buffer == 'per' :
-            self.memory = modules.memory.per(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
+
+
+        self.memory = modules.memory.per(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
 
         self.global_step = 0
 
@@ -117,7 +116,7 @@ class ddqn(agent_base) :
         return ac
 
 
-    def compute_loss(self,states, actions, rewards,next_states, dones):
+    def compute_loss(self,states, actions, rewards,next_states, dones ,w = None):
         """
         if isinstance(states, list):
             states = torch.tensor([states]).to(self.device)
@@ -140,7 +139,11 @@ class ddqn(agent_base) :
         
         policy_Q= policy_Q.gather(1, actions.long().unsqueeze(1))
         policy_Q= policy_Q.squeeze(1)
-        loss = F.smooth_l1_loss(target_Q, policy_Q)
+        if w == None :
+            loss = F.smooth_l1_loss(target_Q, policy_Q)
+            return loss
+        loss = torch.pow(target_Q - policy_Q, 2) * w
+        loss = torch.sum(loss)
 
         return loss
 
@@ -176,12 +179,10 @@ class ddqn(agent_base) :
 
 
 
-            if self.config.replay_buffer == 'buffer' :
-                self.memory.push(state, action_, reward_, next_state,done_)
 
-            if self.config.replay_buffer == 'per' :
-                loss = self.compute_loss(state,action_, reward_,next_state,done_)
-                self.memory.push(state, action_, reward_, next_state , done_ , loss.item())
+
+            loss = self.compute_loss(state,action_, reward_,next_state,done_)
+            self.memory.push(state, action_, reward_, next_state , done_ , loss.item())
             
             state = next_state
             total_return = total_return + reward
@@ -201,7 +202,7 @@ class ddqn(agent_base) :
 
     def update(self) :
 
-        batch = self.memory.make_batch()
+        batch , w = self.memory.make_batch()
         if batch == None :
             return
         states_batch = torch.cat([b.state for b in batch if b is not None]).float().to(self.device)
@@ -210,7 +211,7 @@ class ddqn(agent_base) :
         next_states_batch = torch.cat([b.next_state for b in batch if b is not None]).float().to(self.device)
         dones_batch = torch.cat([b.done for b in batch if b is not None]).float().to(self.device)
 
-        loss = self.compute_loss(states_batch,actions_batch,rewards_batch,next_states_batch,dones_batch)
+        loss = self.compute_loss(states_batch,actions_batch,rewards_batch,next_states_batch,dones_batch , w)
         self.optim.zero_grad()
         loss.backward()
         self.optim.step()

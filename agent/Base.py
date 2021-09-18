@@ -22,6 +22,7 @@ class agent_base(object) :
         self.config = config
 
         self.epi_return = []
+        self.epi_avg_return = []
         self.epi_train_time = []
         self.Timer = utills.timer.timer()
 
