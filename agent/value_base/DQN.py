@@ -80,11 +80,9 @@ class dqn(agent_base) :
 
         self.epsilon = modules.explore.epsilon(self.config.max_epi,self.config.max_eps,self.config.min_eps)
 
-        if config.replay_buffer == 'buffer' :
-            self.memory = modules.memory.replay_buffer(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
 
-        if config.replay_buffer == 'per' :
-            self.memory = modules.memory.per(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
+        self.memory = modules.memory.replay_buffer(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
+
 
         self.global_step = 0
 
@@ -172,12 +170,9 @@ class dqn(agent_base) :
 
 
 
-            if self.config.replay_buffer == 'buffer' :
-                self.memory.push(state, action_, reward_, next_state,done_)
+            self.memory.push(state, action_, reward_, next_state,done_)
 
-            if self.config.replay_buffer == 'per' :
-                loss = self.compute_loss(state,action_, reward_,next_state,done_)
-                self.memory.push(state, action_, reward_, next_state , done_ , loss.item())
+
             
             state = next_state
             total_return = total_return + reward

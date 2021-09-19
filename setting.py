@@ -28,7 +28,7 @@ config_.env_args['max_episode_steps'] = 10000
 config_.env_args['action_space'] = env.action_space
 config_.env_args['observation_space'] = env.observation_space
 
-config_.max_epi = 1000
+config_.max_epi = 3000
 
 config_.save_path = 'D:/GymSA/result'
 
@@ -46,3 +46,4 @@ agent_ddqn = value_base.DDQN.ddqn(config_)
 
 
 agent_per_ddqn = value_base.PER_DDQN.per_ddqn(config_)
+agent_noise_dqn = value_base.noise_DQN.noise_dqn(config_)

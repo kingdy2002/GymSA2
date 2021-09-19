@@ -23,9 +23,9 @@ class Config(object):
         self.hyperparameters = {}
 
         self.save_model = True
-        self.save_interval = 10000
+        self.save_interval = 1000
         self.load_path = ''
         self.save_path = ''
 
-        self.log_interval = 10000
+        self.log_interval = 1000
 

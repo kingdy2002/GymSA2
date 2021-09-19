@@ -139,11 +139,13 @@ class per_ddqn(agent_base) :
         
         policy_Q= policy_Q.gather(1, actions.long().unsqueeze(1))
         policy_Q= policy_Q.squeeze(1)
+        
         if w == None :
             loss = F.smooth_l1_loss(target_Q, policy_Q)
             return loss
+        
         loss = torch.pow(target_Q - policy_Q, 2) * w
-        loss = torch.sum(loss)
+        loss = torch.sum(loss)/self.config.hyperparameters['batch_size']
 
         return loss
 
@@ -230,7 +232,7 @@ class per_ddqn(agent_base) :
                 print('avarage reward is',self.recent_return())
                 
             if epi % self.config.save_interval == 0 :
-                self.save_model('ddqn.{}'.format(epi))
+                self.save_model('per_ddqn.{}'.format(epi))
 
             if epi > 21 :
                 return_sum = 0
@@ -238,8 +240,8 @@ class per_ddqn(agent_base) :
                     return_sum += self.epi_return[-i]
                 self.epi_avg_return.append(return_sum/20)
 
-    def save_model(self,filename,folder = "./model_save/dqn") :
+    def save_model(self,filename,folder = "./model_save/per_ddqn") :
         torch.save(self.policy.state_dict(), f"{folder}/{filename}.pt")
 
-    def load_model(self,filename,folder = "./model_save/dqn") :
+    def load_model(self,filename,folder = "./model_save/per_ddqn") :
         self.policy.load_state_dict(torch.load(f"{folder}/{filename}.pt"))

@@ -83,11 +83,9 @@ class ddqn(agent_base) :
 
         self.epsilon = modules.explore.epsilon(self.config.max_epi,self.config.max_eps,self.config.min_eps)
 
-        if config.replay_buffer == 'buffer' :
-            self.memory = modules.memory.replay_buffer(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
 
-        if config.replay_buffer == 'per' :
-            self.memory = modules.memory.per(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
+        self.memory = modules.memory.replay_buffer(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
+
 
         self.global_step = 0
 
@@ -176,12 +174,9 @@ class ddqn(agent_base) :
 
 
 
-            if self.config.replay_buffer == 'buffer' :
-                self.memory.push(state, action_, reward_, next_state,done_)
+            self.memory.push(state, action_, reward_, next_state,done_)
 
-            if self.config.replay_buffer == 'per' :
-                loss = self.compute_loss(state,action_, reward_,next_state,done_)
-                self.memory.push(state, action_, reward_, next_state , done_ , loss.item())
+
             
             state = next_state
             total_return = total_return + reward
@@ -218,7 +213,7 @@ class ddqn(agent_base) :
 
 
     def run_n_epi(self,render = True) :
-        self.save_model('dqn.{}'.format(0))
+        self.save_model('ddqn.{}'.format(0))
         if self.config.max_epi == None :
             self.config.max_epi = 100000
         for epi in range(1,self.config.max_epi) :
@@ -237,8 +232,8 @@ class ddqn(agent_base) :
                     return_sum += self.epi_return[-i]
                 self.epi_avg_return.append(return_sum/20)
 
-    def save_model(self,filename,folder = "./model_save/dqn") :
+    def save_model(self,filename,folder = "./model_save/ddqn") :
         torch.save(self.policy.state_dict(), f"{folder}/{filename}.pt")
 
-    def load_model(self,filename,folder = "./model_save/dqn") :
+    def load_model(self,filename,folder = "./model_save/ddqn") :
         self.policy.load_state_dict(torch.load(f"{folder}/{filename}.pt"))

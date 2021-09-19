@@ -55,7 +55,9 @@ class per (object) :
         self.td_sum += loss
 
     def make_batch(self) :
-        p = np.array(self.td_buffer) / self.td_sum
+        td_buffer = np.array(self.td_buffer)
+        self.td_sum = td_buffer.sum()
+        p = np.array(td_buffer) / self.td_sum
         index = np.random.choice(range(len(self.td_buffer)), size=self.batch_size, replace=False, p=p)
         batch = [self.memory[i] for i in index ]
         td_batch = [self.td_buffer[i] for i in index ]
