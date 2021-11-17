@@ -3,16 +3,18 @@ import torch
 import random
 import numpy as np
 import torch.nn.functional as F
-
+import time
 import torch.nn as nn
 import modules
+from torch.utils.tensorboard import SummaryWriter
 
 class Actor(nn.Module):
     def __init__(self,state_dim, action_dim):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, action_dim)
+        self.cnn = modules.cnn.Net()
+        self.fc1 = nn.Linear(state_dim, 800)
+        self.fc2 = nn.Linear(800,128)
+        self.fc3 = nn.Linear(128, action_dim)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -25,14 +27,12 @@ class Actor_img(nn.Module):
         super(Actor_img, self).__init__()
         self.cnn = modules.cnn.Net()
         self.fc1 = nn.Linear(1568, 800)
-        self.fc2 = nn.Linear(800,128)
-        self.fc3 = nn.Linear(128, action_dim)
+        self.fc2 = nn.Linear(800, action_dim)
 
     def forward(self, x):
         x= self.cnn(x)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        action_value = self.fc3(x)
+        action_value = self.fc2(x)
         return action_value
 
 
@@ -40,8 +40,8 @@ class Actor_img2(nn.Module):
     def __init__(self, action_dim):
         super(Actor_img2, self).__init__()
         self.cnn = modules.cnn.Net2()
-        self.fc1 = nn.Linear(3136, 512)
-        self.fc2 = nn.Linear(512, action_dim)
+        self.fc1 = nn.Linear(288, 64)
+        self.fc2 = nn.Linear(64, action_dim)
 
     def forward(self, x):
         x= self.cnn(x)
@@ -59,7 +59,7 @@ class Net(nn.Module):
             self.net = Actor(self.obs_dim, self.action_dim)
         else :
             self.obs_dim = observation_space.shape[-1]
-            self.net = Actor_img2(self.action_dim)
+            self.net = Actor_img(self.action_dim)
 
 
     def forward(self, x):
@@ -85,7 +85,7 @@ class dqn(agent_base) :
 
 
         self.global_step = 0
-
+        self.writer = SummaryWriter("./runs/dqn")
 
     def get_state(self, observations,env_observation):
         state = np.array(observations)
@@ -176,16 +176,40 @@ class dqn(agent_base) :
             
             state = next_state
             total_return = total_return + reward
-
             if self.global_step % self.config.update_interval == 0 and self.global_step > self.config.train_start :
-                self.update()
-
-            
+                loss = self.update()
+                self.writer.add_scalar("Loss/train", loss, self.global_step)
+        
         t = self.Timer.finish_episode()
 
         self.epi_train_time.append(t)
         self.epi_return.append(total_return)
         
+    def step_test(self,epi,render = True) :
+
+        self.Timer.start_episode()
+        total_return = 0
+        step = 0
+        state = self.env.reset()
+        env_observation = self.config.env_observation
+        state = self.get_state(state,env_observation)
+        done = False
+
+        while not done :
+            step += 1
+            self.global_step += 1
+
+            if step > self.config.env_args['max_episode_steps'] :
+                break
+            
+            Q_ = self.predict(state)
+            action = torch.argmax(Q_).detach().item()
+
+            next_state, reward, done, info = self.env.step(action)
+            state = self.get_state(next_state,env_observation)
+            if render : 
+                self.env.render()
+
 
 
     def update(self) :
@@ -205,6 +229,10 @@ class dqn(agent_base) :
         self.optim.step()
         return loss.item()
 
+
+    def run_n_epi_test(self,render = True) :
+        for epi in range(1,self.config.max_epi) :
+            self.step_test(self.config.max_epi,render = render)
 
     def run_n_epi(self,render = True) :
         self.save_model('dqn.{}'.format(0))
@@ -226,6 +254,9 @@ class dqn(agent_base) :
                 for i in range(1,21) : 
                     return_sum += self.epi_return[-i]
                 self.epi_avg_return.append(return_sum/20)
+            self.writer.add_scalar("average_return/train", self.epi_return[-1], epi)
+        
+        self.writer.close()
 
     def save_model(self,filename,folder = "./model_save/dqn") :
         torch.save(self.network.state_dict(), f"{folder}/{filename}.pt")

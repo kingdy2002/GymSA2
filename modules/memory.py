@@ -73,3 +73,49 @@ class per (object) :
 
     def __len__(self) :
         return len(self.memory)
+    
+    
+    
+class n_per (object) :
+    def __init__(self,batch_size,buffer_size,alpha = 0.4 , beta = 0.4) :
+        self.td_sum = 0
+        self.td_buffer = deque(maxlen=buffer_size)
+        self.buffer_size =buffer_size
+        self.memory = deque(maxlen=buffer_size)
+        self.experience = namedtuple("experience", field_names=["s0","a", "s1","r1", "s2","r2",  "s3","r3", "done"])
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.batch_size  = batch_size
+
+        self.alpha = alpha
+        self.beta = beta
+
+    #s0,a,s1,r1, s2,r2, s3,r3,  done
+    def push(self,s0,a,s1,r1, s2,r2, s3,r3,  done , loss) :
+        exp = self.experience(s0,a,s1,r1, s2,r2, s3,r3,  done)
+        self.memory.append(exp)
+        loss = loss ** self.alpha
+        if len(self.memory) == self.buffer_size :
+            self.td_sum -= self.td_buffer[0]
+
+        self.td_buffer.append(loss)
+        self.td_sum += loss
+
+    def make_batch(self) :
+        td_buffer = np.array(self.td_buffer)
+        self.td_sum = td_buffer.sum()
+        p = np.array(td_buffer) / self.td_sum
+        index = np.random.choice(range(len(self.td_buffer)), size=self.batch_size, replace=False, p=p)
+        batch = [self.memory[i] for i in index ]
+        td_batch = [self.td_buffer[i] for i in index ]
+        w =self.important_weigh(td_batch)
+        return batch, w
+
+    def important_weigh(self,td_batch) :
+        w = [((1.0 / len(self.td_buffer)) * (self.td_sum / td)) ** self.beta for td in td_batch]
+        max_w = max(w)
+        w = [i / max_w for i in w]
+        w = torch.tensor(w).float().to(self.device)
+        return w
+
+    def __len__(self) :
+        return len(self.memory)

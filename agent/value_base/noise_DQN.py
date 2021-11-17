@@ -7,12 +7,14 @@ import torch.nn.functional as F
 import torch.nn as nn
 import modules
 
+from torch.utils.tensorboard import SummaryWriter
+
 class Actor(nn.Module):
     def __init__(self,state_dim, action_dim):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 64)
-        self.fc2 = modules.noise_layer.NoiseLayer(64, 64)
-        self.fc3 = modules.noise_layer.NoiseLayer(64, action_dim)
+        self.fc1 = nn.Linear(state_dim, 800)
+        self.fc2 = modules.noise_layer.NoiseLayer(800, 128)
+        self.fc3 = modules.noise_layer.NoiseLayer(128, action_dim)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -24,15 +26,13 @@ class Actor_img(nn.Module):
     def __init__(self, action_dim):
         super(Actor_img, self).__init__()
         self.cnn = modules.cnn.Net()
-        self.fc1 = nn.Linear(1568, 800)
-        self.fc2 = modules.noise_layer.NoiseLayer(800,128)
-        self.fc3 = modules.noise_layer.NoiseLayer(128, action_dim)
+        self.fc1 = modules.noise_layer.NoiseLayer(1568,800)
+        self.fc2 = modules.noise_layer.NoiseLayer(800, action_dim)
 
     def forward(self, x):
         x= self.cnn(x)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        action_value = self.fc3(x)
+        action_value = self.fc2(x)
         return action_value
 
 
@@ -40,8 +40,8 @@ class Actor_img2(nn.Module):
     def __init__(self, action_dim):
         super(Actor_img2, self).__init__()
         self.cnn = modules.cnn.Net2()
-        self.fc1 = modules.noise_layer.NoiseLayer(3136, 512)
-        self.fc2 = modules.noise_layer.NoiseLayer(512, action_dim)
+        self.fc1 = modules.noise_layer.NoiseLayer(288, 64)
+        self.fc2 = modules.noise_layer.NoiseLayer(64, action_dim)
 
     def forward(self, x):
         x= self.cnn(x)
@@ -59,7 +59,7 @@ class Net(nn.Module):
             self.net = Actor(self.obs_dim, self.action_dim)
         else :
             self.obs_dim = observation_space.shape[-1]
-            self.net = Actor_img2(self.action_dim)
+            self.net = Actor_img(self.action_dim)
 
 
     def forward(self, x):
@@ -83,6 +83,7 @@ class noise_dqn(agent_base) :
 
         self.global_step = 0
 
+        self.writer = SummaryWriter("./runs/noise_dqn")
 
     def get_state(self, observations,env_observation):
         state = np.array(observations)
@@ -170,7 +171,8 @@ class noise_dqn(agent_base) :
             total_return = total_return + reward
 
             if self.global_step % self.config.update_interval == 0 and self.global_step > self.config.train_start :
-                self.update()
+                loss = self.update()
+                self.writer.add_scalar("Loss/train", loss, self.global_step)
 
             
         t = self.Timer.finish_episode()
@@ -218,6 +220,8 @@ class noise_dqn(agent_base) :
                 for i in range(1,21) : 
                     return_sum += self.epi_return[-i]
                 self.epi_avg_return.append(return_sum/20)
+            self.writer.add_scalar("average_return/train", self.epi_return[-1], epi)
+        self.writer.close()
 
     def save_model(self,filename,folder = "./model_save/noise_dqn") :
         torch.save(self.network.state_dict(), f"{folder}/{filename}.pt")

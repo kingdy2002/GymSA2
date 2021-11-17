@@ -57,11 +57,11 @@ class Net2(nn.Module):
         super(Net2, self).__init__()
 
         self.block1 = nn.Sequential(
-            conv2d(1,32,8,4,0),
-            conv2d(32, 64, 4, 2,0),
-            conv2d(64, 64, 3, 1, 0)
+            conv2d(1,32,5,2,0),
+            conv2d(32, 32, 5, 2,0),
+            conv2d(32, 32, 5, 2, 0),
+            nn.AvgPool2d(2,2)
         )
-
 
     def forward(self, x):
         x = self.block1(x)

@@ -7,12 +7,14 @@ import torch.nn.functional as F
 import torch.nn as nn
 import modules
 
+from torch.utils.tensorboard import SummaryWriter
+
 class Actor(nn.Module):
     def __init__(self,state_dim, action_dim):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, action_dim)
+        self.fc1 = nn.Linear(state_dim, 800)
+        self.fc2 = nn.Linear(800,128)
+        self.fc3 = nn.Linear(128, action_dim)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -25,14 +27,12 @@ class Actor_img(nn.Module):
         super(Actor_img, self).__init__()
         self.cnn = modules.cnn.Net()
         self.fc1 = nn.Linear(1568, 800)
-        self.fc2 = nn.Linear(800,128)
-        self.fc3 = nn.Linear(128, action_dim)
+        self.fc2 = nn.Linear(800, action_dim)
 
     def forward(self, x):
         x= self.cnn(x)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        action_value = self.fc3(x)
+        action_value = self.fc2(x)
         return action_value
 
 
@@ -40,8 +40,8 @@ class Actor_img2(nn.Module):
     def __init__(self, action_dim):
         super(Actor_img2, self).__init__()
         self.cnn = modules.cnn.Net2()
-        self.fc1 = nn.Linear(3136, 512)
-        self.fc2 = nn.Linear(512, action_dim)
+        self.fc1 = nn.Linear(288, 64)
+        self.fc2 = nn.Linear(64, action_dim)
 
     def forward(self, x):
         x= self.cnn(x)
@@ -59,7 +59,7 @@ class Net(nn.Module):
             self.net = Actor(self.obs_dim, self.action_dim)
         else :
             self.obs_dim = observation_space.shape[-1]
-            self.net = Actor_img2(self.action_dim)
+            self.net = Actor_img(self.action_dim)
 
 
     def forward(self, x):
@@ -85,7 +85,7 @@ class ddqn(agent_base) :
 
 
         self.memory = modules.memory.replay_buffer(config.hyperparameters['batch_size'], config.hyperparameters['buffer_size'])
-
+        self.writer = SummaryWriter("./runs/ddqn")
 
         self.global_step = 0
 
@@ -128,9 +128,8 @@ class ddqn(agent_base) :
         if isinstance(dones, list):
             dones = [dones]
         """
-
         next_actions = self.policy(next_states).detach().argmax(-1)
-        target_Q = self.target(next_states)
+        target_Q = self.target(next_states).detach()
         target_Q= target_Q.gather(1, next_actions.long().unsqueeze(1)).squeeze(1)
 
         target_Q = rewards + (self.hyperparameters["discount_rate"] * target_Q * (1 - dones))
@@ -180,12 +179,15 @@ class ddqn(agent_base) :
             
             state = next_state
             total_return = total_return + reward
+            
 
             if self.global_step % self.config.update_interval == 0 and self.global_step > self.config.train_start :
-                self.update()
+                loss = self.update()
+                self.writer.add_scalar("Loss/train", loss, self.global_step)
 
             if self.global_step % self.config.policy_trans == 0 :
                 self.target.load_state_dict(self.policy.state_dict())
+                
 
             
         t = self.Timer.finish_episode()
@@ -231,6 +233,8 @@ class ddqn(agent_base) :
                 for i in range(1,21) : 
                     return_sum += self.epi_return[-i]
                 self.epi_avg_return.append(return_sum/20)
+            self.writer.add_scalar("average_return/train", self.epi_return[-1], epi)
+        self.writer.close()
 
     def save_model(self,filename,folder = "./model_save/ddqn") :
         torch.save(self.policy.state_dict(), f"{folder}/{filename}.pt")

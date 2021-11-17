@@ -14,9 +14,9 @@ class NoiseLayer(nn.Module) :
         self.mu_bias = nn.Parameter(torch.FloatTensor(out_ch).to(self.device)) 
         self.sigma_weight = nn.Parameter(torch.FloatTensor(out_ch, in_ch).to(self.device))
         self.sigma_bias = nn.Parameter(torch.FloatTensor(out_ch).to(self.device))
-        self.register_buffer("epsilon_i", torch.FloatTensor(in_ch).to(self.device))
-        self.register_buffer("epsilon_j", torch.FloatTensor(out_ch).to(self.device))
 
+        self.register_buffer("epsilon_weight", torch.FloatTensor(out_ch, in_ch).to(self.device))
+        self.register_buffer("epsilon_bias", torch.FloatTensor(out_ch).to(self.device))
         self.reset_par()
         self.reset_noise()
 
@@ -24,10 +24,8 @@ class NoiseLayer(nn.Module) :
         self.reset_noise()
         
         if self.is_train :
-            epsilon_weight = self.epsilon_j.ger(self.epsilon_i)
-            epsilon_bias = self.epsilon_j
-            weight = self.mu_weight + self.sigma_weight.mul(epsilon_weight)
-            bias = self.mu_bias + self.sigma_bias.mul(epsilon_bias)
+            weight = self.mu_weight + self.sigma_weight.mul(self.epsilon_weight)
+            bias = self.mu_bias + self.sigma_bias.mul(self.epsilon_bias)
         else:
             weight = self.mu_weight
             bias = self.mu_bias
@@ -47,5 +45,9 @@ class NoiseLayer(nn.Module) :
     def reset_noise(self):
         eps_i = torch.randn(self.in_ch).to(self.device)
         eps_j = torch.randn(self.out_ch).to(self.device)
+        eps_b = torch.randn(self.out_ch).to(self.device)
         self.epsilon_i = eps_i.sign() * (eps_i.abs()).sqrt()
         self.epsilon_j = eps_j.sign() * (eps_j.abs()).sqrt()
+        self.epsilon_b = eps_b.sign() * (eps_b.abs()).sqrt()
+        self.epsilon_weight = self.epsilon_j.ger(self.epsilon_i)
+        self.epsilon_bias = self.epsilon_b
